@@ -221,7 +221,11 @@ const App: React.FC = () => {
       )}
 
       {status === InterviewStatus.COMPLETED && (selectedSession?.feedback || session.feedback) && (
-        <FeedbackReport feedback={selectedSession?.feedback || session.feedback!} onRestart={() => { setSession({}); setSelectedSession(null); setStatus(InterviewStatus.IDLE); }} />
+        <FeedbackReport
+          feedback={selectedSession?.feedback || session.feedback!}
+          transcription={selectedSession?.transcription || session.transcription}
+          onRestart={() => { setSession({}); setSelectedSession(null); setStatus(InterviewStatus.IDLE); }}
+        />
       )}
     </Layout>
   );

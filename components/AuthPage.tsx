@@ -11,17 +11,17 @@ interface AuthPageProps {
 export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({ 
-    email: '', 
-    password: '', 
-    name: '', 
-    phone: '' 
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    name: '',
+    phone: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    
+
     // Email Validation
     if (!formData.email) {
       newErrors.email = 'Email required';
@@ -41,7 +41,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
       if (!formData.name) {
         newErrors.name = 'Full Name required';
       }
-      
+
       // Phone Validation
       if (!formData.phone) {
         newErrors.phone = 'Phone Number required';
@@ -57,9 +57,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       let user: User;
       if (isLogin) {
@@ -78,9 +78,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
   return (
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-700">
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 bg-[var(--surface)] rounded-[48px] shadow-3xl overflow-hidden border border-[var(--border)] relative">
-        
+
         {/* CLOSE BUTTON */}
-        <button 
+        <button
           onClick={onBack}
           className="absolute top-8 right-8 z-20 text-[var(--muted)] hover:text-[var(--text)] transition-all p-3 hover:bg-[var(--accent)] rounded-2xl"
         >
@@ -98,7 +98,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
           <div className="relative z-10">
             <div className="w-16 h-16 bg-white/10 backdrop-blur-xl rounded-[24px] flex items-center justify-center font-black text-3xl mb-12 shadow-2xl border border-white/10">S</div>
             <h1 className="text-6xl font-black tracking-tighter leading-none mb-6">
-              Establish <br/> Your <span className="text-indigo-400">Identity.</span>
+              Establish <br /> Your <span className="text-indigo-400">Identity.</span>
             </h1>
             <p className="text-indigo-100/60 text-lg font-medium max-w-sm leading-relaxed">
               Sync with the world's most advanced AI interview coach and unlock your hidden potential.
@@ -106,20 +106,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
           </div>
 
           <div className="relative z-10 space-y-8">
-             <div className="flex items-center gap-6 group">
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500 transition-all">🎤</div>
-                <div>
-                   <h4 className="font-bold text-sm tracking-tight">Real-time Analysis</h4>
-                   <p className="text-xs text-indigo-100/40">Vocal semantics & body logic</p>
-                </div>
-             </div>
-             <div className="flex items-center gap-6 group">
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500 transition-all">🧠</div>
-                <div>
-                   <h4 className="font-bold text-sm tracking-tight">Cognitive Insights</h4>
-                   <p className="text-xs text-indigo-100/40">Technical depth mapping</p>
-                </div>
-             </div>
+            <div className="flex items-center gap-6 group">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500 transition-all">🎤</div>
+              <div>
+                <h4 className="font-bold text-sm tracking-tight">Real-time Analysis</h4>
+                <p className="text-xs text-indigo-100/40">Vocal semantics & body logic</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6 group">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500 transition-all">🧠</div>
+              <div>
+                <h4 className="font-bold text-sm tracking-tight">Cognitive Insights</h4>
+                <p className="text-xs text-indigo-100/40">Technical depth mapping</p>
+              </div>
+            </div>
           </div>
         </div>
 

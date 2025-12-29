@@ -4,10 +4,11 @@ import { InterviewFeedback } from '../types';
 
 interface FeedbackProps {
   feedback: InterviewFeedback;
+  transcription?: string[];
   onRestart: () => void;
 }
 
-export const FeedbackReport: React.FC<FeedbackProps> = ({ feedback, onRestart }) => {
+export const FeedbackReport: React.FC<FeedbackProps> = ({ feedback, transcription, onRestart }) => {
   const chartData = [
     { subject: 'Technical', A: feedback.technicalScore, fullMark: 100 },
     { subject: 'Communication', A: feedback.communicationScore, fullMark: 100 },
@@ -90,6 +91,34 @@ export const FeedbackReport: React.FC<FeedbackProps> = ({ feedback, onRestart })
             </section>
           </div>
         </div>
+
+        {/* Transcript Section */}
+        {transcription && transcription.length > 0 && (
+          <div className="px-12 md:px-20 pb-12 md:pb-20">
+            <div className="flex items-center gap-4 mb-12">
+              <div className="w-1.5 h-10 bg-indigo-600 rounded-full"></div>
+              <h3 className="text-3xl font-black text-[var(--text)] tracking-tight uppercase">Session Transcript</h3>
+            </div>
+            <div className="bg-[var(--accent)] rounded-[40px] p-8 md:p-12 border border-[var(--border)] max-h-[600px] overflow-y-auto custom-scrollbar space-y-6">
+              {transcription.map((line, i) => {
+                const isUser = line.startsWith('Candidate');
+                return (
+                  <div key={i} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                    <span className="text-[10px] font-black uppercase tracking-widest mb-2 text-[var(--muted)] opacity-60">
+                      {isUser ? 'Candidate Request' : 'Interviewer Response'}
+                    </span>
+                    <div className={`max-w-[80%] px-8 py-6 rounded-[32px] text-base leading-relaxed font-medium ${isUser
+                      ? 'bg-indigo-600/10 text-indigo-300 rounded-tr-none border border-indigo-500/20'
+                      : 'bg-[var(--surface)] text-[var(--text)] rounded-tl-none border border-[var(--border)]'
+                      }`}>
+                      {line.split(': ').slice(1).join(': ')}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="bg-[var(--accent)] p-16 border-t border-[var(--border)] flex justify-center">
           <button

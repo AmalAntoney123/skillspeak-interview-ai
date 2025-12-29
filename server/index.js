@@ -14,10 +14,9 @@ app.use(express.json());
 const PORT = 5000;
 
 mongoose.connect(process.env.MONGO_URI, {
-    //   useNewUrlParser: true, // No longer needed in Mongoose 6+
-    //   useUnifiedTopology: true,
+    dbName: 'skillspeak_db',
 })
-    .then(() => console.log('MongoDB Connected'))
+    .then(() => console.log('MongoDB Connected to skillspeak'))
     .catch(err => console.log(err));
 
 app.use('/api/auth', authRoutes);
