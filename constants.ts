@@ -18,6 +18,7 @@ export const SYSTEM_PROMPTS = {
     - Be concise. Wait for user input.
     - Maintain a serious, professional demeanor.
     - Start the interview immediately after connecting.
+    - The candidate will be speaking only in english, if u think you heard another language ask them to speak english.
   `,
   ANALYZER: `
     You are an expert Interview Performance Analyst. Analyze the following interview transcript and provide a structured feedback report.
