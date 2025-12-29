@@ -1,84 +1,94 @@
-
 import { User, InterviewSession } from '../types';
 
-/**
- * SkillSpeak Service Layer
- * Simulates persistence with LocalStorage while maintaining MongoDB Atlas compatible structure.
- */
+const API_URL = 'http://localhost:5000/api';
 
 export const authService = {
   async signUp(email: string, password: string, name: string, phone: string): Promise<User> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const seed = Math.random().toString(36).substr(2, 5);
-        const newUser: User = {
-          id: Math.random().toString(36).substr(2, 9),
-          email,
-          name,
-          phone,
-          avatarSeed: seed,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}`
-        };
-        localStorage.setItem('skillspeak_user', JSON.stringify(newUser));
-        resolve(newUser);
-      }, 800);
+    const res = await fetch(`${API_URL}/auth/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name, phone })
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Signup failed');
+    localStorage.setItem('token', data.token);
+    return data.user;
   },
 
   async signIn(email: string, password: string): Promise<User> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const stored = localStorage.getItem('skillspeak_user');
-        if (stored) {
-          const user = JSON.parse(stored);
-          if (user.email === email) {
-            resolve(user);
-            return;
-          }
-        }
-        // Fallback for demo: create a mock user if one doesn't exist
-        const guestUser: User = {
-          id: 'guest_' + Date.now(),
-          email,
-          name: email.split('@')[0],
-          phone: '+1 (555) 000-0000',
-          avatarSeed: 'guest',
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=guest`
-        };
-        localStorage.setItem('skillspeak_user', JSON.stringify(guestUser));
-        resolve(guestUser);
-      }, 800);
+    const res = await fetch(`${API_URL}/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
     });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Signin failed');
+    localStorage.setItem('token', data.token);
+    return data.user;
   },
 
   async updateProfile(updates: Partial<User>): Promise<User> {
-    const current = this.getCurrentUser();
-    if (!current) throw new Error("No user logged in");
-    const updated = { ...current, ...updates };
-    if (updates.avatarSeed) {
-      updated.avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${updates.avatarSeed}`;
-    }
-    localStorage.setItem('skillspeak_user', JSON.stringify(updated));
-    return updated;
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error("No user logged in");
+
+    const res = await fetch(`${API_URL}/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(updates)
+    });
+
+    if (!res.ok) throw new Error('Failed to update profile');
+    return await res.json();
   },
 
   signOut() {
-    localStorage.removeItem('skillspeak_user');
+    localStorage.removeItem('token');
   },
 
-  getCurrentUser(): User | null {
-    const stored = localStorage.getItem('skillspeak_user');
-    return stored ? JSON.parse(stored) : null;
+  async getCurrentUser(): Promise<User | null> {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try {
+      const res = await fetch(`${API_URL}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        localStorage.removeItem('token');
+        return null;
+      }
+      return await res.json();
+    } catch {
+      return null;
+    }
   },
 
-  saveInterviewSession(session: InterviewSession) {
-    const history = this.getInterviewHistory();
-    history.unshift(session);
-    localStorage.setItem('skillspeak_history', JSON.stringify(history));
+  async saveInterviewSession(session: InterviewSession) {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    await fetch(`${API_URL}/interviews`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(session)
+    });
   },
 
-  getInterviewHistory(): InterviewSession[] {
-    const stored = localStorage.getItem('skillspeak_history');
-    return stored ? JSON.parse(stored) : [];
+  async getInterviewHistory(): Promise<InterviewSession[]> {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    try {
+      const res = await fetch(`${API_URL}/interviews`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      return await res.json();
+    } catch {
+      return [];
+    }
   }
 };

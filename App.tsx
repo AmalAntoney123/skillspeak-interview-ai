@@ -19,11 +19,15 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user);
-      setHistory(authService.getInterviewHistory());
-    }
+    const init = async () => {
+      const user = await authService.getCurrentUser();
+      if (user) {
+        setCurrentUser(user);
+        const history = await authService.getInterviewHistory();
+        setHistory(history);
+      }
+    };
+    init();
   }, []);
 
   const startInterview = (config: Partial<InterviewSession>) => {
@@ -49,9 +53,10 @@ const App: React.FC = () => {
         transcription: transcript,
         feedback
       };
-      authService.saveInterviewSession(fullSession);
+      await authService.saveInterviewSession(fullSession);
       setSession(fullSession);
-      setHistory(authService.getInterviewHistory());
+      const history = await authService.getInterviewHistory();
+      setHistory(history);
       setStatus(InterviewStatus.COMPLETED);
     } catch (error) {
       console.error("Feedback analysis failed:", error);
@@ -68,8 +73,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <Layout 
-      user={currentUser} 
+    <Layout
+      user={currentUser}
       onAuthClick={() => setStatus(InterviewStatus.AUTH)}
       onLogout={handleLogout}
       onProfileClick={() => setStatus(InterviewStatus.PROFILE)}
@@ -77,10 +82,11 @@ const App: React.FC = () => {
       hideNav={status === InterviewStatus.INTERVIEWING}
     >
       {status === InterviewStatus.AUTH && (
-        <AuthPage 
-          onSuccess={(user) => {
+        <AuthPage
+          onSuccess={async (user) => {
             setCurrentUser(user);
-            setHistory(authService.getInterviewHistory());
+            const history = await authService.getInterviewHistory();
+            setHistory(history);
             setStatus(InterviewStatus.IDLE);
           }}
           onBack={() => setStatus(InterviewStatus.IDLE)}
@@ -103,7 +109,7 @@ const App: React.FC = () => {
                   The only AI platform that analyzes your presence, technical depth, and cognitive performance in real-time.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-10">
-                  <button 
+                  <button
                     onClick={() => setStatus(InterviewStatus.AUTH)}
                     className="btn-primary w-full sm:w-auto px-16 py-6 rounded-3xl font-black text-xl uppercase tracking-widest shadow-2xl"
                   >
@@ -134,7 +140,7 @@ const App: React.FC = () => {
               <section className="bg-[var(--accent)] rounded-[60px] p-12 md:p-24 border border-[var(--border)] relative overflow-hidden">
                 <div className="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 blur-[120px] rounded-full"></div>
                 <div className="relative z-10 max-w-4xl">
-                  <h2 className="text-4xl md:text-6xl font-black text-[var(--text)] mb-20 leading-tight tracking-tighter">Your Journey to <br/><span className="text-indigo-500">Mastery</span></h2>
+                  <h2 className="text-4xl md:text-6xl font-black text-[var(--text)] mb-20 leading-tight tracking-tighter">Your Journey to <br /><span className="text-indigo-500">Mastery</span></h2>
                   <div className="space-y-16">
                     {[
                       { step: '01', title: 'Contextual Calibration', text: 'Define your role and company target. Our AI generates a custom assessment profile.' },
@@ -169,9 +175,9 @@ const App: React.FC = () => {
                       <div className="py-24 text-center opacity-20 italic font-medium uppercase tracking-[0.2em] text-[10px] text-[var(--text)]">Waiting for your first simulation...</div>
                     ) : (
                       history.map(sess => (
-                        <div 
-                          key={sess.id} 
-                          className="flex items-center p-5 rounded-3xl border border-[var(--border)] bg-[var(--accent)] hover:border-indigo-500/30 cursor-pointer transition-all group" 
+                        <div
+                          key={sess.id}
+                          className="flex items-center p-5 rounded-3xl border border-[var(--border)] bg-[var(--accent)] hover:border-indigo-500/30 cursor-pointer transition-all group"
                           onClick={() => { setSelectedSession(sess); setStatus(InterviewStatus.COMPLETED); }}
                         >
                           <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mr-5 shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">🎤</div>
@@ -203,14 +209,14 @@ const App: React.FC = () => {
 
       {status === InterviewStatus.REVIEWING && (
         <div className="flex flex-col items-center justify-center min-h-[600px] space-y-12 px-4 text-center">
-           <div className="relative w-32 h-32">
-             <div className="absolute inset-0 border-8 border-[var(--border)] rounded-full"></div>
-             <div className="absolute inset-0 border-8 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-           </div>
-           <div>
-             <h2 className="text-4xl font-black text-[var(--text)] tracking-tighter mb-4">Neural Analytics in Progress</h2>
-             <p className="text-[var(--muted)] text-xl font-medium max-w-md mx-auto">The engine is parsing your vocal semantics and behavioral markers.</p>
-           </div>
+          <div className="relative w-32 h-32">
+            <div className="absolute inset-0 border-8 border-[var(--border)] rounded-full"></div>
+            <div className="absolute inset-0 border-8 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <div>
+            <h2 className="text-4xl font-black text-[var(--text)] tracking-tighter mb-4">Neural Analytics in Progress</h2>
+            <p className="text-[var(--muted)] text-xl font-medium max-w-md mx-auto">The engine is parsing your vocal semantics and behavioral markers.</p>
+          </div>
         </div>
       )}
 
