@@ -40,8 +40,27 @@ export const authService = {
       body: JSON.stringify(updates)
     });
 
-    if (!res.ok) throw new Error('Failed to update profile');
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to update profile');
+    return data;
+  },
+
+  async changePassword(passwordData: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error("No user logged in");
+
+    const res = await fetch(`${API_URL}/auth/change-password`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(passwordData)
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to change password');
+    return data;
   },
 
   signOut() {
