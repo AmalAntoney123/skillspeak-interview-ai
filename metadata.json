@@ -1,0 +1,8 @@
+{
+  "name": "SkillSpeak - AI Interview Coach",
+  "description": "Master your interview skills with real-time AI feedback and video proctoring simulation.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
