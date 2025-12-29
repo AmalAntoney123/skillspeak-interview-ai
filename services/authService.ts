@@ -1,6 +1,6 @@
 import { User, InterviewSession } from '../types';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export const authService = {
   async signUp(email: string, password: string, name: string, phone: string): Promise<User> {
