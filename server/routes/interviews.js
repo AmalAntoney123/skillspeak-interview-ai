@@ -21,14 +21,15 @@ const auth = (req, res, next) => {
 // Create Interview
 router.post('/', auth, async (req, res) => {
     try {
-        const { role, company, date, feedback, transcription } = req.body;
+        const { role, company, date, feedback, transcription, resumeText } = req.body;
         const interview = new Interview({
             userId: req.userId,
             role,
             company,
             date,
             feedback,
-            transcription
+            transcription,
+            resumeText
         });
         await interview.save();
         res.json(interview);

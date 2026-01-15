@@ -10,11 +10,11 @@ interface FeedbackProps {
 
 export const FeedbackReport: React.FC<FeedbackProps> = ({ feedback, transcription, onRestart }) => {
   const chartData = [
-    { subject: 'Technical', A: feedback.technicalScore, fullMark: 100 },
-    { subject: 'Communication', A: feedback.communicationScore, fullMark: 100 },
-    { subject: 'Confidence', A: feedback.confidenceScore, fullMark: 100 },
-    { subject: 'Structure', A: 85, fullMark: 100 },
-    { subject: 'Relevance', A: 90, fullMark: 100 },
+    { subject: 'Technical', A: feedback.technicalScore || (feedback as any).technical?.score || 0, fullMark: 100 },
+    { subject: 'Communication', A: feedback.communicationScore || (feedback as any).communication?.score || 0, fullMark: 100 },
+    { subject: 'Confidence', A: feedback.confidenceScore || 0, fullMark: 100 },
+    { subject: 'Structure', A: feedback.structureScore || 85, fullMark: 100 },
+    { subject: 'Relevance', A: feedback.relevanceScore || 90, fullMark: 100 },
   ];
 
   return (

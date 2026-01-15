@@ -16,6 +16,9 @@ interface LiveInterviewProps {
 export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) => {
   const [isConnecting, setIsConnecting] = useState(true);
   const [isBotSpeaking, setIsBotSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [hasExtended, setHasExtended] = useState(false);
   const [transcription, setTranscription] = useState<string[]>([]);
   const transcriptRef = useRef<string[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -32,9 +35,12 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
   const nextStartTimeRef = useRef<number>(0);
   const currentInputTranscriptionRef = useRef('');
   const currentOutputTranscriptionRef = useRef('');
+  const isPausedRef = useRef(false);
 
-  // Proctoring Throttling
-  const lastProctorAlertTime = useRef<number>(0);
+  // Sync ref with state for use in callbacks
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   const loadFaceModels = async () => {
     const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
@@ -62,6 +68,7 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
   }, []);
 
   const triggerProctorAlert = (type: string, message: string, severity: 'warning' | 'critical' = 'warning') => {
+    if (isPausedRef.current) return;
     const now = Date.now();
     if (now - lastProctorAlertTime.current < 5000) return; // Debounce alerts
 
@@ -72,10 +79,16 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
   };
 
   const runNeuralProctoring = async () => {
-    if (!videoRef.current || !overlayCanvasRef.current || !modelsLoaded || !session.proctoringEnabled) return;
+    if (isPausedRef.current || !videoRef.current || !overlayCanvasRef.current || !modelsLoaded || !session.proctoringEnabled) {
+      if (!isPausedRef.current) requestAnimationFrame(runNeuralProctoring);
+      return;
+    }
 
     const displaySize = { width: videoRef.current.videoWidth, height: videoRef.current.videoHeight };
-    if (displaySize.width === 0) return;
+    if (displaySize.width === 0) {
+      requestAnimationFrame(runNeuralProctoring);
+      return;
+    }
 
     faceapi.matchDimensions(overlayCanvasRef.current, displaySize);
 
@@ -128,18 +141,27 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
     requestAnimationFrame(runNeuralProctoring);
   };
 
-
+  const lastProctorAlertTime = useRef<number>(0);
 
   const startSession = async () => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
       const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       const outputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+
+      // Force resume to ensure it's not suspended by browser policy
+      if (inputCtx.state === 'suspended') await inputCtx.resume();
+      if (outputCtx.state === 'suspended') await outputCtx.resume();
+
       audioContextRef.current = inputCtx;
       outputAudioContextRef.current = outputCtx;
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
         video: session.proctoringEnabled ? { width: 640, height: 480 } : false
       });
       streamRef.current = stream;
@@ -153,6 +175,8 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
             const scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
 
             scriptProcessor.onaudioprocess = (e) => {
+              if (isPausedRef.current) return;
+
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmBlob = createAudioBlob(inputData);
               sessionPromise.then((s: any) => {
@@ -171,6 +195,7 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
             });
           },
           onmessage: async (message: LiveServerMessage) => {
+            if (isPausedRef.current) return;
 
             if (message.serverContent?.outputTranscription) {
               currentOutputTranscriptionRef.current += message.serverContent.outputTranscription.text;
@@ -209,7 +234,7 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-          systemInstruction: SYSTEM_PROMPTS.INTERVIEWER(session.role!, session.level!, session.company!, session.description!),
+          systemInstruction: SYSTEM_PROMPTS.INTERVIEWER(session.role!, session.level!, session.company!, session.description!, session.resumeText),
           inputAudioTranscription: {},
           outputAudioTranscription: {}
         }
@@ -222,9 +247,19 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
 
   useEffect(() => {
     loadFaceModels();
-    const timer = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
+    const timer = setInterval(() => {
+      setElapsedTime(prev => {
+        const next = prev + 1;
+        if (next >= 1800 && !hasExtended && !showTimeModal) { // 30 minutes
+          setShowTimeModal(true);
+          setIsPaused(true);
+        }
+        return isPausedRef.current ? prev : next;
+      });
+    }, 1000);
 
     const handleBlur = () => {
+      if (isPausedRef.current) return;
       triggerProctorAlert(
         "TAB_SWITCH",
         "Tab/window switch detected! Please stay on this interview tab at all times.",
@@ -238,7 +273,7 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
       clearInterval(timer);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [hasExtended, showTimeModal]);
 
   useEffect(() => {
     if (modelsLoaded) {
@@ -259,6 +294,14 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleTogglePause = () => {
+    setIsPaused(!isPaused);
+    if (isPaused && audioContextRef.current?.state === 'suspended') {
+      audioContextRef.current.resume();
+      outputAudioContextRef.current?.resume();
+    }
   };
 
   if (isConnecting) {
@@ -282,10 +325,21 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
             </div>
           </div>
           <div className="h-8 w-px bg-[var(--border)] hidden md:block"></div>
-          <div className="hidden md:flex flex-col">
+          <div className="hidden md:flex flex-col border-r border-[var(--border)] pr-8">
             <span className="text-[9px] font-black uppercase text-[var(--muted)] tracking-tighter">Session Timer</span>
             <span className="text-sm font-mono text-indigo-400 font-bold">{formatTime(elapsedTime)}</span>
           </div>
+
+          <button
+            onClick={handleTogglePause}
+            className={`flex items-center gap-3 px-6 py-2.5 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-widest ${isPaused ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20' : 'bg-[var(--surface)] border-[var(--border)] text-[var(--text)] hover:border-indigo-500/50'}`}
+          >
+            {isPaused ? (
+              <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg> Resume Simulation</>
+            ) : (
+              <><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg> Pause Session</>
+            )}
+          </button>
         </div>
 
         <button
@@ -297,6 +351,60 @@ export const LiveInterview: React.FC<LiveInterviewProps> = ({ session, onEnd }) 
       </header>
 
       <div className="flex-1 flex flex-col lg:flex-row min-h-0 relative">
+        {/* TIME LIMIT MODAL */}
+        {showTimeModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-[3000] flex items-center justify-center p-6">
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-[48px] p-12 max-w-xl w-full text-center shadow-3xl animate-in zoom-in-95 duration-300">
+              <div className="w-20 h-20 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
+                <svg className="w-10 h-10 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-3xl font-black text-white tracking-tighter uppercase mb-4">Time Limit Reached</h3>
+              <p className="text-[var(--muted)] text-lg font-medium leading-relaxed mb-10">
+                You have reached the 30-minute simulation threshold. Would you like to extend the session for deeper analysis or conclude the interview now?
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={() => {
+                    setHasExtended(true);
+                    setShowTimeModal(false);
+                    setIsPaused(false);
+                  }}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 p-6 rounded-3xl text-white font-black uppercase tracking-widest shadow-xl shadow-indigo-600/20 transition-all active:scale-95"
+                >
+                  Extend Session
+                </button>
+                <button
+                  onClick={() => onEnd(transcriptRef.current)}
+                  className="flex-1 bg-transparent hover:bg-red-500/10 border border-[var(--border)] hover:border-red-500/50 p-6 rounded-3xl text-[var(--text)] hover:text-red-400 font-black uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Conclude Now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isPaused && !showTimeModal && (
+          <div className="absolute inset-0 bg-[var(--bg)]/60 backdrop-blur-sm z-[500] flex items-center justify-center animate-in fade-in duration-500">
+            <div className="flex flex-col items-center">
+              <div className="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center mb-6 shadow-2xl shadow-indigo-600/40">
+                <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.5em] text-indigo-400 animate-pulse">Simulation Suspended</p>
+              <button
+                onClick={() => setIsPaused(false)}
+                className="mt-8 text-white/40 hover:text-white text-xs font-black uppercase tracking-widest transition-all underline underline-offset-8"
+              >
+                Return to Live Link
+              </button>
+            </div>
+          </div>
+        )}
+
         {proctorWarning && (
           <div className="absolute top-10 left-1/2 -translate-x-1/2 z-[2000] animate-in slide-in-from-top-4">
             <div className={`${proctorWarning.severity === 'critical'

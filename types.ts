@@ -28,6 +28,7 @@ export interface InterviewSession {
   transcription: string[];
   feedback?: InterviewFeedback;
   proctoringEnabled: boolean;
+  resumeText?: string;
 }
 
 export interface InterviewFeedback {
@@ -35,6 +36,8 @@ export interface InterviewFeedback {
   technicalScore: number;
   communicationScore: number;
   confidenceScore: number;
+  structureScore: number;
+  relevanceScore: number;
   strengths: string[];
   improvements: string[];
   summary: string;

@@ -7,7 +7,7 @@ const API_KEY = process.env.API_KEY;
 
 export const analyzeInterview = async (transcript: string[]): Promise<InterviewFeedback> => {
   const ai = new GoogleGenAI({ apiKey: API_KEY! });
-  
+
   const response = await ai.models.generateContent({
     model: MODELS.ANALYSIS,
     contents: `Analyze this interview transcript:\n\n${transcript.join('\n')}`,
@@ -21,11 +21,13 @@ export const analyzeInterview = async (transcript: string[]): Promise<InterviewF
           technicalScore: { type: Type.NUMBER },
           communicationScore: { type: Type.NUMBER },
           confidenceScore: { type: Type.NUMBER },
+          structureScore: { type: Type.NUMBER },
+          relevanceScore: { type: Type.NUMBER },
           strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
           improvements: { type: Type.ARRAY, items: { type: Type.STRING } },
           summary: { type: Type.STRING }
         },
-        required: ["overallScore", "technicalScore", "communicationScore", "confidenceScore", "strengths", "improvements", "summary"]
+        required: ["overallScore", "technicalScore", "communicationScore", "confidenceScore", "structureScore", "relevanceScore", "strengths", "improvements", "summary"]
       }
     }
   });

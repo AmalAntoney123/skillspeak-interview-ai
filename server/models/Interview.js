@@ -7,23 +7,17 @@ const InterviewSchema = new mongoose.Schema({
     date: { type: String },
     feedback: {
         overallScore: Number,
-        technical: {
-            score: Number,
-            analysis: String
-        },
-        communication: {
-            score: Number,
-            analysis: String
-        },
-        cultural: {
-            score: Number,
-            analysis: String
-        },
+        technicalScore: Number,
+        communicationScore: Number,
+        confidenceScore: Number,
+        structureScore: Number,
+        relevanceScore: Number,
         strengths: [String],
-        weaknesses: [String],
-        improvements: [String]
+        improvements: [String],
+        summary: String
     },
     transcription: { type: [String] },
+    resumeText: { type: String },
     createdAt: { type: Date, default: Date.now },
 });
 
