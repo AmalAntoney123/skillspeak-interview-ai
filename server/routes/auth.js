@@ -2,6 +2,8 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/mailer.js';
+
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
@@ -48,20 +50,85 @@ router.post('/signup', async (req, res) => {
             avatarSeed: seed
         });
 
+        // Generate verification OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.verificationOtp = otp;
+        user.verificationOtpExpires = Date.now() + 600000; // 10 minutes
+
         await user.save();
+
+        // Send verification email
+        try {
+            await sendVerificationEmail(email, name, otp);
+        } catch (mailErr) {
+            console.error("Failed to send verification email:", mailErr);
+            // We still created the user, they can request a resend later
+        }
 
         const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: '7d' });
         res.json({
             token,
+            message: 'Account created. Please verify your email.',
             user: {
                 id: user._id,
                 email,
                 name,
                 phone,
                 avatar,
-                avatarSeed: seed
+                avatarSeed: seed,
+                isVerified: false
             }
         });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Verify Email
+router.post('/verify-email', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) return res.status(400).json({ message: 'Email and verification code are required' });
+
+        const user = await User.findOne({
+            email,
+            verificationOtp: otp,
+            verificationOtpExpires: { $gt: Date.now() }
+        });
+
+        if (!user) return res.status(400).json({ message: 'Invalid or expired verification code' });
+
+        user.isVerified = true;
+        user.verificationOtp = undefined;
+        user.verificationOtpExpires = undefined;
+        await user.save();
+
+        res.json({ message: 'Email verified successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Resend Verification Code
+router.post('/resend-verification', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (user.isVerified) return res.status(400).json({ message: 'Email is already verified' });
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.verificationOtp = otp;
+        user.verificationOtpExpires = Date.now() + 600000;
+        await user.save();
+
+        await sendVerificationEmail(email, user.name, otp);
+
+        res.json({ message: 'Verification code resent to your inbox.' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });
@@ -220,6 +287,67 @@ router.delete('/account', authMiddleware, async (req, res) => {
         await User.findByIdAndDelete(req.userId);
 
         res.json({ message: 'Account deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Request Reset OTP
+router.post('/request-otp', async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.resetOtp = otp;
+        user.resetOtpExpires = Date.now() + 600000; // 10 minutes
+        await user.save();
+
+        // Send reset email
+        try {
+            await sendPasswordResetEmail(email, user.name, otp);
+        } catch (mailErr) {
+            console.error("Failed to send reset email:", mailErr);
+            return res.status(500).json({ message: 'Failed to send reset email. Please try again later.' });
+        }
+
+        res.json({ message: 'Neural verification code dispatched to your inbox.' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Reset Password with OTP
+router.post('/reset-password-otp', async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+
+        const user = await User.findOne({
+            email,
+            resetOtp: otp,
+            resetOtpExpires: { $gt: Date.now() }
+        });
+
+        if (!user) return res.status(400).json({ message: 'Invalid or expired verification code' });
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        user.password = hashedPassword;
+        user.resetOtp = undefined;
+        user.resetOtpExpires = undefined;
+        await user.save();
+
+        res.json({ message: 'Neural credentials synchronized successfully.' });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });

@@ -63,6 +63,50 @@ export const authService = {
     return data;
   },
 
+  async requestOtp(email: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_URL}/auth/request-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'OTP request failed');
+    return data;
+  },
+
+  async resetPasswordWithOtp(email: string, otp: string, newPassword: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_URL}/auth/reset-password-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Reset failed');
+    return data;
+  },
+
+  async verifyEmail(email: string, otp: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_URL}/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Verification failed');
+    return data;
+  },
+
+  async resendVerification(email: string): Promise<{ message: string }> {
+    const res = await fetch(`${API_URL}/auth/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to resend code');
+    return data;
+  },
+
   signOut() {
     localStorage.removeItem('token');
   },

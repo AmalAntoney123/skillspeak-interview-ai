@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { authService } from '../services/authService';
 import { User } from '../types';
+import { ForgotPassword } from './ForgotPassword';
 
 interface AuthPageProps {
   onSuccess: (user: User) => void;
@@ -9,7 +10,10 @@ interface AuthPageProps {
 }
 
 export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot' | 'verify'>('login');
+  const [verificationOtp, setVerificationOtp] = useState('');
+  const [tempUser, setTempUser] = useState<User | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -18,6 +22,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
     phone: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isLogin = authMode === 'login';
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -36,7 +42,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
       newErrors.password = 'Min 6 characters';
     }
 
-    if (!isLogin) {
+    if (authMode === 'signup') {
       // Name Validation
       if (!formData.name) {
         newErrors.name = 'Full Name required';
@@ -64,16 +70,44 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
       let user: User;
       if (isLogin) {
         user = await authService.signIn(formData.email, formData.password);
+        onSuccess(user);
       } else {
         user = await authService.signUp(formData.email, formData.password, formData.name, formData.phone);
+        setTempUser(user);
+        setAuthMode('verify');
       }
-      onSuccess(user);
     } catch (err) {
       setErrors({ form: 'Neural handshake failed. Credentials mismatch.' });
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationOtp || !tempUser) return;
+
+    setIsLoading(true);
+    try {
+      await authService.verifyEmail(tempUser.email, verificationOtp);
+      onSuccess({ ...tempUser, isVerified: true });
+    } catch (err: any) {
+      setErrors({ verification: err.message || 'Verification failed. Please check your code.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!tempUser) return;
+    try {
+      await authService.resendVerification(tempUser.email);
+      setErrors({ verification: 'New code dispatched to your inbox.' });
+    } catch (err: any) {
+      setErrors({ verification: 'Failed to resend. Please try again later.' });
+    }
+  };
+
 
   return (
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-700">
@@ -125,96 +159,172 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onSuccess, onBack }) => {
 
         {/* RIGHT SIDE: AUTH FORM */}
         <div className="p-8 md:p-16 lg:p-20 bg-[var(--surface)] flex flex-col justify-center">
-          <div className="mb-10 text-center lg:text-left">
-            <h2 className="text-4xl font-black text-[var(--text)] tracking-tighter mb-3">
-              {isLogin ? 'Welcome Back' : 'Join SkillSpeak'}
-            </h2>
-            <p className="text-[var(--muted)] font-medium">
-              {isLogin ? 'Resume your neural link evolution.' : 'Initiate your coaching sequence today.'}
-            </p>
-          </div>
+          {authMode === 'forgot' ? (
+            <ForgotPassword onBack={() => setAuthMode('login')} initialEmail={formData.email} />
+          ) : authMode === 'verify' ? (
+            <div className="space-y-8 animate-in slide-in-from-right-10 duration-500">
+              <div className="mb-8">
+                <h2 className="text-4xl font-black text-[var(--text)] tracking-tighter mb-3">
+                  Identity Sync
+                </h2>
+                <p className="text-[var(--muted)] font-medium">
+                  We've sent a 6-digit neural code to <span className="text-indigo-400">{tempUser?.email}</span>.
+                </p>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLogin && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-in slide-in-from-top-4">
+              <form onSubmit={handleVerify} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Full Name</label>
+                  <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Verification Code</label>
                   <input
                     type="text"
-                    className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.name ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
-                    placeholder="Alex Smith"
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    maxLength={6}
+                    className="w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all focus:ring-2 focus:ring-indigo-500/50 text-center tracking-[0.5em]"
+                    placeholder="000000"
+                    value={verificationOtp}
+                    onChange={e => setVerificationOtp(e.target.value)}
+                    required
                   />
-                  {errors.name && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.name}</p>}
+                  {errors.verification && (
+                    <p className={`text-[9px] font-bold uppercase ml-1 mt-2 ${errors.verification.includes('dispatched') ? 'text-emerald-400' : 'text-red-500'}`}>
+                      {errors.verification}
+                    </p>
+                  )}
                 </div>
+
+                <button
+                  disabled={isLoading}
+                  className="w-full btn-primary py-5 rounded-[24px] font-black text-lg shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98]"
+                >
+                  {isLoading ? (
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="uppercase tracking-[0.3em] font-black">Verify Identity</span>
+                  )}
+                </button>
+
+                <div className="flex flex-col gap-4 items-center">
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    className="text-[var(--muted)] hover:text-indigo-400 transition-all font-black text-[10px] uppercase tracking-[0.4em]"
+                  >
+                    Resend Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode('signup')}
+                    className="text-[var(--muted)] hover:text-[var(--text)] transition-all font-black text-[10px] uppercase tracking-[0.2em]"
+                  >
+                    Back to Setup
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <>
+              <div className="mb-10 text-center lg:text-left">
+                <h2 className="text-4xl font-black text-[var(--text)] tracking-tighter mb-3">
+                  {isLogin ? 'Welcome Back' : 'Join SkillSpeak'}
+                </h2>
+                <p className="text-[var(--muted)] font-medium">
+                  {isLogin ? 'Resume your neural link evolution.' : 'Initiate your coaching sequence today.'}
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {authMode === 'signup' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-in slide-in-from-top-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Full Name</label>
+                      <input
+                        type="text"
+                        className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.name ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
+                        placeholder="Alex Smith"
+                        value={formData.name}
+                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      />
+                      {errors.name && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.name}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Phone Number</label>
+                      <input
+                        type="tel"
+                        className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.phone ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
+                        placeholder="+1 234 567 890"
+                        value={formData.phone}
+                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                      />
+                      {errors.phone && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.phone}</p>}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Phone Number</label>
+                  <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Email Address</label>
                   <input
-                    type="tel"
-                    className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.phone ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
-                    placeholder="+1 234 567 890"
-                    value={formData.phone}
-                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    type="email"
+                    className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.email ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
+                    placeholder="you@domain.com"
+                    value={formData.email}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
                   />
-                  {errors.phone && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.phone}</p>}
+                  {errors.email && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.email}</p>}
                 </div>
+
+                <div className="space-y-2 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Password</label>
+                    {isLogin && (
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('forgot')}
+                        className="text-[9px] font-black uppercase text-indigo-400 hover:text-indigo-300 transition-all tracking-[0.2em]"
+                      >
+                        Forget Password?
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.password ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                  />
+                  {errors.password && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.password}</p>}
+                </div>
+
+                {errors.form && (
+                  <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-[10px] font-black uppercase text-center tracking-widest">
+                    {errors.form}
+                  </div>
+                )}
+
+                <button
+                  disabled={isLoading}
+                  className="w-full btn-primary py-5 rounded-[24px] font-black text-lg shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] mt-4"
+                >
+                  {isLoading ? (
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="uppercase tracking-[0.3em]">{isLogin ? 'Access System' : 'Initiate Setup'}</span>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-12 pt-10 border-t border-[var(--border)] text-center lg:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-[var(--muted)] text-[10px] font-black uppercase tracking-widest">
+                  {isLogin ? "New candidate?" : "Already registered?"}
+                </span>
+                <button
+                  onClick={() => { setAuthMode(isLogin ? 'signup' : 'login'); setErrors({}); }}
+                  className="bg-indigo-500/10 text-indigo-400 px-6 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-indigo-500/20 transition-all tracking-widest"
+                >
+                  {isLogin ? 'Create Profile' : 'System Login'}
+                </button>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Email Address</label>
-              <input
-                type="email"
-                className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.email ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
-                placeholder="you@domain.com"
-                value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
-              />
-              {errors.email && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.email}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-[var(--muted)] uppercase tracking-widest ml-1">Password</label>
-              <input
-                type="password"
-                className={`w-full px-6 py-4 rounded-2xl border-none text-sm font-semibold transition-all ${errors.password ? 'ring-2 ring-red-500/50' : 'focus:ring-2 focus:ring-indigo-500/50'}`}
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={e => setFormData({ ...formData, password: e.target.value })}
-              />
-              {errors.password && <p className="text-[9px] text-red-500 font-bold uppercase ml-1">{errors.password}</p>}
-            </div>
-
-            {errors.form && (
-              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-[10px] font-black uppercase text-center tracking-widest">
-                {errors.form}
-              </div>
-            )}
-
-            <button
-              disabled={isLoading}
-              className="w-full btn-primary py-5 rounded-[24px] font-black text-lg shadow-2xl flex items-center justify-center gap-4 disabled:opacity-50 active:scale-[0.98] mt-4"
-            >
-              {isLoading ? (
-                <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <span className="uppercase tracking-[0.3em]">{isLogin ? 'Access System' : 'Initiate Setup'}</span>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-12 pt-10 border-t border-[var(--border)] text-center lg:text-left flex flex-col sm:flex-row items-center justify-between gap-4">
-            <span className="text-[var(--muted)] text-[10px] font-black uppercase tracking-widest">
-              {isLogin ? "New candidate?" : "Already registered?"}
-            </span>
-            <button
-              onClick={() => { setIsLogin(!isLogin); setErrors({}); }}
-              className="bg-indigo-500/10 text-indigo-400 px-6 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-indigo-500/20 transition-all tracking-widest"
-            >
-              {isLogin ? 'Create Profile' : 'System Login'}
-            </button>
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>

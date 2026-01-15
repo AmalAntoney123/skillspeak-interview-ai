@@ -1,11 +1,10 @@
+import './loadEnv.js';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import interviewRoutes from './routes/interviews.js';
 
-dotenv.config({ path: '../.env.local' });
 
 const app = express();
 app.use(cors());

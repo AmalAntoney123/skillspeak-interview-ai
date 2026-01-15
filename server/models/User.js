@@ -7,6 +7,11 @@ const UserSchema = new mongoose.Schema({
     phone: { type: String },
     avatar: { type: String },
     avatarSeed: { type: String },
+    resetOtp: { type: String },
+    resetOtpExpires: { type: Date },
+    isVerified: { type: Boolean, default: false },
+    verificationOtp: { type: String },
+    verificationOtpExpires: { type: Date },
     createdAt: { type: Date, default: Date.now },
 });
 
